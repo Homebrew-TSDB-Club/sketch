@@ -1,0 +1,18 @@
+[package]
+name = "ql"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [
+    "src/runtime",
+]
+
+[dependencies]
+ahash = "0.7.6"
+croaring = "0.6.1"
+hashbrown = "0.12.1"
+pdatastructs = "0.7.0"
+slab = "0.4.6"
+snafu = "0.7.1"
+runtime = { path = "src/runtime" }

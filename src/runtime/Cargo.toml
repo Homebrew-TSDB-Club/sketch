@@ -1,0 +1,12 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures-lite = "1.12.0"
+core_affinity = "0.5.10"
+snafu = "0.7.1"
+async-task = "4.2.0"
+concurrent-queue = "1.2.2"
+futures = "0.3.21"
