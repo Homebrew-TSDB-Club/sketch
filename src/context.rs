@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 
-use crate::expression::Expression;
+use crate::expression::ExprImpl;
 
 #[derive(Debug, Default)]
 pub(crate) struct Stack {
-    variables: HashMap<Arc<str>, Box<dyn Expression>>,
+    variables: HashMap<Arc<str>, Box<ExprImpl>>,
 }
 
 impl Stack {
@@ -14,15 +14,15 @@ impl Stack {
         Default::default()
     }
 
-    fn get(&self, name: &str) -> Option<&Box<dyn Expression>> {
+    fn get(&self, name: &str) -> Option<&Box<ExprImpl>> {
         self.variables.get(name)
     }
 
-    fn get_mut(&mut self, name: &str) -> Option<&mut Box<dyn Expression>> {
+    fn get_mut(&mut self, name: &str) -> Option<&mut Box<ExprImpl>> {
         self.variables.get_mut(name)
     }
 
-    fn set(&mut self, name: &str, value: Box<dyn Expression>) {
+    fn set(&mut self, name: &str, value: Box<ExprImpl>) {
         self.variables.insert(Arc::from(name), value);
     }
 }
@@ -43,11 +43,11 @@ impl Context {
         self.stack.pop();
     }
 
-    pub fn get(&self, name: &str) -> Option<&Box<dyn Expression>> {
+    pub fn get(&self, name: &str) -> Option<&Box<ExprImpl>> {
         self.stack.iter().rev().find_map(|c| c.get(name))
     }
 
-    pub fn set(&mut self, name: &str, value: Box<dyn Expression>) {
+    pub fn set(&mut self, name: &str, value: Box<ExprImpl>) {
         for context in self.stack.iter_mut().rev() {
             if let Some(v) = context.get_mut(name) {
                 *v = value;
@@ -68,16 +68,16 @@ mod tests {
     fn test_context() {
         let mut env = Context::new();
         env.push(|env| {
-            env.set("foo", String::from("foo").boxed());
+            env.set("foo", Box::new(String::from("foo").as_impl_ref().to_owned()));
             env.push(|env| {
-                assert!(env.get("foo") == Some(&String::from("foo").boxed()));
-                env.set("bar", String::from("bar").boxed());
-                assert!(env.get("bar") == Some(&String::from("bar").boxed()));
-                env.set("foo", String::from("baz").boxed());
-                assert!(env.get("foo") == Some(&String::from("baz").boxed()));
+                assert!(env.get("foo") == Some(&Box::new(String::from("foo").as_impl_ref().to_owned())));
+                env.set("bar", Box::new(String::from("bar").as_impl_ref().to_owned()));
+                assert!(env.get("bar") == Some(&Box::new(String::from("bar").as_impl_ref().to_owned())));
+                env.set("foo", Box::new(String::from("baz").as_impl_ref().to_owned()));
+                assert!(env.get("foo") == Some(&Box::new(String::from("baz").as_impl_ref().to_owned())));
             });
             assert!(env.get("bar") == None);
-            assert!(env.get("foo") == Some(&String::from("baz").boxed()));
+            assert!(env.get("foo") == Some(&Box::new(String::from("baz").as_impl_ref().to_owned())));
         });
     }
 }

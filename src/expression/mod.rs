@@ -1,83 +1,123 @@
-pub mod chunk;
+// pub mod chunk;
 pub mod error;
-pub mod filter;
-pub mod scan;
-pub mod source;
+// pub mod filter;
+// pub mod scan;
+// pub mod source;
 
 use std::any::Any;
 use std::fmt::Debug;
+use std::future::Future;
 
-use crate::primitive::Primitive;
+use crate::context::Context;
+use crate::primitive::{Primitive, PrimitiveType};
 
-use self::error::ExpressionError;
+use self::error::ExprError;
 
-pub trait Expression: 'static + Send + Debug {
-    fn evaluate(
-        &self,
-        context: &mut crate::context::Context,
-        args: &[&dyn Expression],
-    ) -> Result<&dyn Expression, ExpressionError>;
-    fn equal(&self, other: &dyn Expression) -> bool;
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExprType {
+    String,
+    Literal,
+    Primitive(PrimitiveType),
+}
+
+pub trait AnyExpr: Any + Debug {
+    fn clone_box(&self) -> Box<dyn AnyExpr>;
+    fn equal(&self, other: &dyn AnyExpr) -> bool;
     fn as_any(&self) -> &dyn Any;
-
-    #[inline]
-    fn boxed(self) -> Box<dyn Expression>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
-    }
 }
 
-impl PartialEq for dyn Expression {
-    fn eq(&self, other: &Self) -> bool {
-        self.equal(other)
-    }
-}
-
-impl Expression for String {
+impl<T: Expression> AnyExpr for T {
     #[inline]
-    fn evaluate(
-        &self,
-        _context: &mut crate::context::Context,
-        _args: &[&dyn Expression],
-    ) -> Result<&dyn Expression, ExpressionError> {
-        Ok(self)
+    fn clone_box(&self) -> Box<dyn AnyExpr> {
+        Box::new(self.clone())
     }
 
-    #[inline]
-    fn equal(&self, other: &dyn Expression) -> bool {
+    fn equal(&self, other: &dyn AnyExpr) -> bool {
         other.as_any().downcast_ref::<Self>().map_or(false, |e| self == e)
     }
 
-    #[inline]
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl PartialEq for &dyn AnyExpr {
+    fn eq(&self, other: &Self) -> bool {
+        self.equal(*other)
+    }
+}
+
+#[derive(Debug)]
+pub struct ExprImpl {
+    expr_type: ExprType,
+    data: Box<dyn AnyExpr>,
+}
+
+impl PartialEq for ExprImpl {
+    fn eq(&self, other: &Self) -> bool {
+        self.expr_type == other.expr_type && &*self.data == &*other.data
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExprImplRef<'a> {
+    expr_type: ExprType,
+    data: &'a dyn AnyExpr,
+}
+
+impl ExprImplRef<'_> {
+    pub fn to_owned(&self) -> ExprImpl {
+        ExprImpl {
+            expr_type: self.expr_type.clone(),
+            data: self.data.clone_box(),
+        }
+    }
+}
+
+pub trait Expression: 'static + Send + Debug + Clone + PartialEq {
+    type EvalFut<'a>: Future<Output = Result<ExprImplRef<'a>, ExprError>>
+    where
+        Self: 'a;
+
+    fn evaluate(&self, context: &mut Context, args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_>;
+    fn as_impl_ref(&self) -> ExprImplRef<'_>;
+}
+
+impl Expression for String {
+    type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
+
+    #[inline]
+    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+        async { Ok(self.as_impl_ref()) }
+    }
+
+    #[inline]
+    fn as_impl_ref(&self) -> ExprImplRef<'_> {
+        ExprImplRef {
+            expr_type: ExprType::String,
+            data: self,
+        }
     }
 }
 
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PrimitiveExpr<T: Primitive>(T);
 
 impl<T: Primitive> Expression for PrimitiveExpr<T> {
+    type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
+
     #[inline]
-    fn evaluate(
-        &self,
-        _context: &mut crate::context::Context,
-        _args: &[&dyn Expression],
-    ) -> Result<&dyn Expression, ExpressionError> {
-        Ok(self)
+    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+        async { Ok(self.as_impl_ref()) }
     }
 
     #[inline]
-    fn equal(&self, other: &dyn Expression) -> bool {
-        other.as_any().downcast_ref::<Self>().map_or(false, |e| self == e)
-    }
-
-    #[inline]
-    fn as_any(&self) -> &dyn Any {
-        self
+    fn as_impl_ref(&self) -> ExprImplRef<'_> {
+        ExprImplRef {
+            expr_type: ExprType::Primitive(T::TYPE),
+            data: self,
+        }
     }
 }
 
@@ -93,23 +133,19 @@ impl AsRef<str> for Literal {
 }
 
 impl Expression for Literal {
+    type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
+
     #[inline]
-    fn evaluate(
-        &self,
-        _context: &mut crate::context::Context,
-        _args: &[&dyn Expression],
-    ) -> Result<&dyn Expression, ExpressionError> {
-        Ok(self)
+    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+        async { Ok(self.as_impl_ref()) }
     }
 
     #[inline]
-    fn equal(&self, other: &dyn Expression) -> bool {
-        other.as_any().downcast_ref::<Self>().map_or(false, |e| self == e)
-    }
-
-    #[inline]
-    fn as_any(&self) -> &dyn Any {
-        self
+    fn as_impl_ref(&self) -> ExprImplRef<'_> {
+        ExprImplRef {
+            expr_type: ExprType::Literal,
+            data: self,
+        }
     }
 }
 

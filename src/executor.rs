@@ -5,7 +5,7 @@ use runtime::{CoreId, Runtime};
 use snafu::{ResultExt, Snafu};
 
 use crate::catalog::CatalogList;
-use crate::expression::Expression;
+use crate::expression::ExprImpl;
 
 #[derive(Snafu, Debug)]
 pub enum ExecutorError {
@@ -26,7 +26,7 @@ impl Executor {
         Ok(Self { runtime, catalog_list })
     }
 
-    pub fn execute(&self, _expr: Box<dyn Expression>) {
+    pub fn execute(&self, _expr: Box<ExprImpl>) {
         // self.runtime.run(f);
         todo!()
     }
