@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::future::Future;
 
 use crate::context::Context;
-use crate::primitive::{Primitive, PrimitiveType};
+use crate::primitive::{Primitive as PrimitiveData, PrimitiveType};
 
 use self::error::ExprError;
 
@@ -102,9 +102,9 @@ impl Expression for String {
 
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PrimitiveExpr<T: Primitive>(T);
+pub struct Primitive<T: PrimitiveData>(T);
 
-impl<T: Primitive> Expression for PrimitiveExpr<T> {
+impl<T: PrimitiveData> Expression for Primitive<T> {
     type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
 
     #[inline]
