@@ -11,7 +11,7 @@ fn hash_with_state<H: Hash>(state: &RandomState, value: &H) -> u64 {
     hasher.finish()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Dictionary<A: Array> {
     hash_state: RandomState,
     dedup: HashMap<usize, (), ()>,

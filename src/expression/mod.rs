@@ -1,26 +1,31 @@
-// pub mod chunk;
+pub mod chunk;
 pub mod error;
 // pub mod filter;
-// pub mod scan;
-// pub mod source;
+pub mod scan;
+pub mod source;
 
 use std::any::Any;
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
+use crate::column::MutableChunk;
 use crate::context::Context;
 use crate::primitive::{Primitive as PrimitiveData, PrimitiveType};
+use crate::source::Table;
 
 use self::error::ExprError;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ExprType {
     String,
     Literal,
     Primitive(PrimitiveType),
+    Chunk,
+    Table,
 }
 
-pub trait AnyExpr: Any + Debug {
+pub trait AnyExpr: Any + Debug + Send + 'static {
     fn clone_box(&self) -> Box<dyn AnyExpr>;
     fn equal(&self, other: &dyn AnyExpr) -> bool;
     fn as_any(&self) -> &dyn Any;
@@ -53,13 +58,22 @@ pub struct ExprImpl {
     data: Box<dyn AnyExpr>,
 }
 
+impl Clone for ExprImpl {
+    fn clone(&self) -> Self {
+        ExprImpl {
+            expr_type: self.expr_type,
+            data: self.data.clone_box(),
+        }
+    }
+}
+
 impl PartialEq for ExprImpl {
     fn eq(&self, other: &Self) -> bool {
         self.expr_type == other.expr_type && &*self.data == &*other.data
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct ExprImplRef<'a> {
     expr_type: ExprType,
     data: &'a dyn AnyExpr,
@@ -72,14 +86,18 @@ impl ExprImplRef<'_> {
             data: self.data.clone_box(),
         }
     }
+
+    pub fn as_any(&self) -> &dyn Any {
+        self.data.as_any()
+    }
 }
 
 pub trait Expression: 'static + Send + Debug + Clone + PartialEq {
-    type EvalFut<'a>: Future<Output = Result<ExprImplRef<'a>, ExprError>>
+    type EvalFut<'a>: Future<Output = Result<ExprImplRef<'a>, ExprError>> + 'a
     where
         Self: 'a;
 
-    fn evaluate(&self, context: &mut Context, args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_>;
+    fn evaluate<'a>(&'a self, context: &'a mut Context, args: &'a [ExprImplRef<'_>]) -> Self::EvalFut<'_>;
     fn as_impl_ref(&self) -> ExprImplRef<'_>;
 }
 
@@ -87,7 +105,7 @@ impl Expression for String {
     type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
 
     #[inline]
-    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+    fn evaluate(&self, _: &mut Context, _: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
         async { Ok(self.as_impl_ref()) }
     }
 
@@ -108,7 +126,7 @@ impl<T: PrimitiveData> Expression for Primitive<T> {
     type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
 
     #[inline]
-    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+    fn evaluate(&self, _: &mut Context, _: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
         async { Ok(self.as_impl_ref()) }
     }
 
@@ -136,7 +154,7 @@ impl Expression for Literal {
     type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
 
     #[inline]
-    fn evaluate(&self, _context: &mut Context, _args: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+    fn evaluate(&self, _: &mut Context, _: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
         async { Ok(self.as_impl_ref()) }
     }
 
@@ -156,3 +174,30 @@ impl Expression for Literal {
 // WHERE job = "prometheus"
 // RANGE (now - 5m) < time < now
 // SUM(value) BY job
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+
+    use crate::context::Context;
+
+    use super::error::ExprError;
+    use super::{ExprImpl, ExprImplRef, Expression};
+
+    #[derive(Debug, PartialEq, Clone)]
+    struct Transfer {
+        inner: Box<ExprImpl>,
+    }
+
+    impl Expression for Transfer {
+        type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>> + 'a;
+
+        fn evaluate<'a>(&'a self, context: &'a mut Context, args: &'a [ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+            async { self.inner.evaluate(context, args).await }
+        }
+
+        fn as_impl_ref(&self) -> super::ExprImplRef<'_> {
+            todo!()
+        }
+    }
+}

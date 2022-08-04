@@ -10,7 +10,7 @@ const MILLIS_PER_SEC: i64 = 1_000;
 
 pub const EPOCH: Instant = Instant { millis: 0 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Duration {
     millis: i64,
 }

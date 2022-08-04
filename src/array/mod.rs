@@ -13,7 +13,27 @@ use self::scalar::{
     NullableFixedSizeListRef, NullableFixedSizeListRefMut, NullableFixedSizedList, Scalar, ScalarRef, ScalarRefMut,
 };
 
-pub trait Array: 'static + Debug + Send + Sync {
+#[derive(Debug)]
+pub struct ArrayIterator<'a, A: Array> {
+    array: &'a A,
+    pos: usize,
+}
+
+impl<'a, A: Array> Iterator for ArrayIterator<'a, A> {
+    type Item = A::ItemRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.array.len() {
+            None
+        } else {
+            let item = self.array.get_unchecked(self.pos);
+            self.pos += 1;
+            Some(item)
+        }
+    }
+}
+
+pub trait Array: 'static + Debug + Send + Sync + Sized {
     type Item: for<'a> Scalar<Ref<'a> = Self::ItemRef<'a>>;
     type ItemRef<'a>: ScalarRef<'a, Owned = Self::Item>
     where
@@ -30,6 +50,11 @@ pub trait Array: 'static + Debug + Send + Sync {
     fn len(&self) -> usize;
 
     #[inline]
+    fn iter(&self) -> ArrayIterator<'_, Self> {
+        ArrayIterator { array: self, pos: 0 }
+    }
+
+    #[inline]
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -39,7 +64,7 @@ pub trait IdentifiedArray: Array {
     type ID: Eq + Hash;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FixedSizedListArray<P: Primitive> {
     data: Vec<P>,
     list_size: usize,
@@ -109,7 +134,7 @@ impl<P: Primitive> Array for FixedSizedListArray<P> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListArray<P: Primitive> {
     data: Vec<P>,
     offsets: Vec<usize>,
@@ -177,7 +202,7 @@ impl<P: Primitive> Array for ListArray<P> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NullableFixedSizedListArray<P: Primitive> {
     validity: Bitmap,
     data: FixedSizedListArray<P>,
@@ -247,7 +272,7 @@ impl<P: Primitive> Array for NullableFixedSizedListArray<P> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdArray<A: Array>
 where
     for<'a, 'b> A::ItemRef<'a>: PartialEq<A::ItemRef<'b>> + Hash,
@@ -323,7 +348,7 @@ where
     type ID = usize;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PrimitiveArray<P: Primitive> {
     data: Vec<P>,
 }
@@ -370,7 +395,7 @@ impl<P: Primitive> Array for PrimitiveArray<P> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConstFixedSizedListArray<P: Primitive, const SIZE: usize> {
     array: FixedSizedListArray<P>,
 }

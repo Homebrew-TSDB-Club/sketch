@@ -1,24 +1,22 @@
-use crate::column::MutableChunk;
+use std::future::Future;
 
-use super::error::ExpressionError;
-use super::Expression;
+use crate::column::MutableChunk;
+use crate::context::Context;
+
+use super::error::ExprError;
+use super::{ExprImplRef, ExprType, Expression};
 
 impl Expression for MutableChunk {
-    fn evaluate(
-        &self,
-        _context: &mut crate::context::Context,
-        _args: &[&dyn Expression],
-    ) -> Result<&dyn Expression, ExpressionError> {
-        Ok(self)
+    type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
+
+    fn evaluate(&self, _: &mut Context, _: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+        async { Ok(self.as_impl_ref()) }
     }
 
-    #[inline]
-    fn equal(&self, _other: &dyn Expression) -> bool {
-        unimplemented!()
-    }
-
-    #[inline]
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn as_impl_ref(&self) -> ExprImplRef<'_> {
+        ExprImplRef {
+            expr_type: ExprType::Chunk,
+            data: self,
+        }
     }
 }

@@ -24,7 +24,7 @@ native_type!(i64, PrimitiveType::I64);
 native_type!(f32, PrimitiveType::F32);
 native_type!(f64, PrimitiveType::F64);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum PrimitiveType {
     Bool,
     U8,

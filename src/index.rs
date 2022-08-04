@@ -13,7 +13,7 @@ pub trait Index {
     fn exactly(&self) -> bool;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct InvertedIndex<V>
 where
     V: Eq + Hash,
@@ -57,7 +57,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SparseIndex<V: Hash> {
     seens: Vec<BloomFilter<V>>,
     block_size: u32,

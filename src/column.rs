@@ -22,18 +22,30 @@ pub type IPv6Label = IdArray<ConstFixedSizedListArray<u8, 16>>;
 pub type IntLabel = IdArray<PrimitiveArray<i64>>;
 pub type BoolLabel = IdArray<PrimitiveArray<bool>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LabelColumn<A: IdentifiedArray> {
     array: A,
     index: Vec<IndexImpl<A::ID>>,
 }
 
-#[derive(Debug)]
+impl<A: IdentifiedArray> PartialEq for LabelColumn<A> {
+    fn eq(&self, other: &Self) -> bool {
+        self.array.iter().eq(other.array.iter())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FieldColumn<A: Array> {
     array: A,
 }
 
-#[derive(Debug)]
+impl<A: Array> PartialEq for FieldColumn<A> {
+    fn eq(&self, other: &Self) -> bool {
+        self.array.iter().eq(other.array.iter())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum LabelImpl {
     String(LabelColumn<StringLabel>),
     IPv4(LabelColumn<IPv4Label>),
@@ -42,7 +54,7 @@ pub enum LabelImpl {
     Bool(LabelColumn<BoolLabel>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FieldImpl {
     UInt8(FieldColumn<UInt8Field>),
     UInt16(FieldColumn<UInt16Field>),
@@ -57,7 +69,7 @@ pub enum FieldImpl {
     Bool(FieldColumn<BoolField>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ChunkMeta {
     pub(crate) start_at: Instant,
     time_interval: Duration,
@@ -71,7 +83,7 @@ impl ChunkMeta {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MutableChunk {
     pub label: Vec<LabelImpl>,
     pub field: Vec<FieldImpl>,

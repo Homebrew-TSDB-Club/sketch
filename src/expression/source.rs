@@ -1,25 +1,23 @@
+use std::future::Future;
+use std::sync::Arc;
+
 use crate::context::Context;
 use crate::source::Table;
 
-use super::error::ExpressionError;
-use super::Expression;
+use super::error::ExprError;
+use super::{ExprImplRef, ExprType, Expression};
 
-impl Expression for Table {
-    #[inline]
-    fn evaluate(&self, _context: &mut Context, _args: &[&dyn Expression]) -> Result<&dyn Expression, ExpressionError> {
-        Ok(self)
+impl Expression for Arc<Table> {
+    type EvalFut<'a> = impl Future<Output = Result<ExprImplRef<'a>, ExprError>>;
+
+    fn evaluate(&self, _: &mut Context, _: &[ExprImplRef<'_>]) -> Self::EvalFut<'_> {
+        async { Ok(self.as_impl_ref()) }
     }
 
-    #[inline]
-    fn equal(&self, other: &dyn Expression) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<Self>()
-            .map_or(false, |e| self.name() == e.name())
-    }
-
-    #[inline]
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn as_impl_ref(&self) -> ExprImplRef<'_> {
+        ExprImplRef {
+            expr_type: ExprType::Table,
+            data: self,
+        }
     }
 }

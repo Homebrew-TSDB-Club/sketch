@@ -15,6 +15,12 @@ pub struct Table {
     shards: Vec<TableShard>,
 }
 
+impl PartialEq for Table {
+    fn eq(&self, other: &Self) -> bool {
+        self as *const Self == other as *const Self
+    }
+}
+
 impl Table {
     #[inline]
     pub fn name(&self) -> &str {
